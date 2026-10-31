@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import { Layout } from '@/components/layout/Layout'
 import { RequireAdmin, RequireAuth } from '@/components/layout/guards'
 import { Spinner } from '@/components/ui/badge'
+import { LEGAL_SLUGS } from '@/lib/legal'
 
 // Every route is code-split.
 const Home = lazy(() => import('@/pages/Home'))
@@ -17,6 +18,7 @@ const Jobs = lazy(() => import('@/pages/Jobs'))
 const Login = lazy(() => import('@/pages/Login'))
 const Account = lazy(() => import('@/pages/Account'))
 const Admin = lazy(() => import('@/pages/Admin'))
+const Legal = lazy(() => import('@/pages/Legal'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 export default function App() {
@@ -36,6 +38,7 @@ export default function App() {
           <Route path="login" element={<Login />} />
           <Route path="account" element={<RequireAuth><Account /></RequireAuth>} />
           <Route path="admin" element={<RequireAdmin><Admin /></RequireAdmin>} />
+          {LEGAL_SLUGS.map((slug) => <Route key={slug} path={slug} element={<Legal />} />)}
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

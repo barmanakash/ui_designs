@@ -1,13 +1,31 @@
-// Env-controlled analytics. VITE_ANALYTICS_PROVIDER = none | plausible | posthog.
+// Env-controlled analytics, gated by the visitor's consent.
+// VITE_ANALYTICS_PROVIDER = none | plausible | posthog.
+// NOTHING loads or is sent until the visitor clicks "Accept" on the consent banner.
 // PostHog uses its plain HTTP capture endpoint (no SDK) to keep the bundle small.
 import { readLocal, uid, writeLocal } from './utils'
 
 type Props = Record<string, string | number | boolean | null>
+export type Consent = 'granted' | 'denied' | null
+
 const provider = (import.meta.env.VITE_ANALYTICS_PROVIDER as string | undefined) ?? 'none'
 const phKey = import.meta.env.VITE_POSTHOG_KEY as string | undefined
 const phHost = ((import.meta.env.VITE_POSTHOG_HOST as string | undefined) ?? 'https://us.i.posthog.com').replace(/\/$/, '')
+const CONSENT_KEY = 'ff_consent'
+
+/** False when analytics is off, so the consent banner is never shown for nothing. */
+export const analyticsEnabled = provider === 'plausible' || (provider === 'posthog' && Boolean(phKey))
+
+export const getConsent = (): Consent => readLocal<Consent>(CONSENT_KEY, null)
+
+export function setConsent(value: 'granted' | 'denied') {
+  writeLocal(CONSENT_KEY, value)
+  if (value === 'granted') initAnalytics()
+}
+
+const allowed = () => analyticsEnabled && getConsent() === 'granted'
 
 export function initAnalytics() {
+  if (!allowed()) return
   if (provider === 'plausible') {
     const domain = import.meta.env.VITE_PLAUSIBLE_DOMAIN as string | undefined
     if (!domain || document.querySelector('script[data-plausible]')) return
@@ -31,8 +49,9 @@ function distinctId() {
   return id
 }
 
-/** Track a custom event. Safe to call anywhere; silently no-ops if analytics is off. */
+/** Track a custom event. Safe to call anywhere; silently no-ops if analytics is off or not consented. */
 export function track(event: string, props: Props = {}) {
+  if (!allowed()) return
   try {
     if (provider === 'plausible') {
       ;(window as any).plausible?.(event, { props })
@@ -51,6 +70,7 @@ export function track(event: string, props: Props = {}) {
 
 /** Plausible manual mode needs an explicit pageview on SPA route changes. */
 export function trackPageview(path: string) {
+  if (!allowed()) return
   if (provider === 'plausible') (window as any).plausible?.('pageview')
   else if (provider === 'posthog') track('$pageview', { $current_url: location.origin + path })
 }

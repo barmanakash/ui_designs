@@ -15,11 +15,15 @@
   },
   "include": [
     "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
     "tailwind.config.ts",
     "api",
     "scripts",
+    "tests",
     "src/lib/seed.ts",
     "src/lib/constants.ts",
+    "src/lib/popularity.ts",
     "src/types"
   ]
 }

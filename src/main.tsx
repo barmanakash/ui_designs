@@ -13,6 +13,14 @@ import './styles/index.css'
 
 initAnalytics()
 
+// Error tracking: only active when VITE_SENTRY_DSN is set, and loaded lazily so it costs nothing otherwise.
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN as string | undefined
+if (sentryDsn) {
+  void import('@sentry/react').then((Sentry) =>
+    Sentry.init({ dsn: sentryDsn, environment: import.meta.env.MODE, sendDefaultPii: false, tracesSampleRate: 0.1 }),
+  )
+}
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false, retry: 1 } },
 })

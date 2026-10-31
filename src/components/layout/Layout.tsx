@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Navbar } from './Navbar'
 import { Footer } from './Footer'
+import { ConsentBanner } from './ConsentBanner'
 import { trackPageview } from '@/lib/analytics'
 
 export function Layout() {
@@ -17,6 +18,7 @@ export function Layout() {
         <Outlet />
       </main>
       <Footer />
+      <ConsentBanner />
     </div>
   )
 }

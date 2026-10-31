@@ -3,6 +3,8 @@
 import { FREE_FIND_PER_DAY } from './constants'
 import { SAMPLE_JOBS, SEED_DESIGNS, SEED_PRO } from './seed'
 import { hasSupabase, sb } from './supabase'
+import { processImage } from './image'
+import { popularityScore } from './popularity'
 import { readLocal, writeLocal, uid } from './utils'
 import type { Design, FindResult, Job, ProContent } from '@/types'
 
@@ -55,7 +57,8 @@ export async function fetchDesigns(q: DesignQuery, page: number): Promise<{ item
   if (q.tag) query = query.contains('tags', [q.tag])
   if (q.color) query = query.contains('dominant_colors', [q.color])
   const term = q.search ? clean(q.search) : ''
-  if (term) query = query.or(`title.ilike.%${term}%,description.ilike.%${term}%`)
+  // Partial-word match (ilike) OR Postgres full-text search (stemming, weighted tags/title).
+  if (term) query = query.or(`title.ilike.%${term}%,description.ilike.%${term}%,search_vector.wfts(english).${term}`)
   query = q.sort === 'popular' ? query.order('views', { ascending: false }) : query.order('created_at', { ascending: false })
   const from = page * PAGE_SIZE
   const { data, error } = await query.range(from, from + PAGE_SIZE - 1)
@@ -89,7 +92,14 @@ export async function fetchSimilar(d: Design): Promise<Design[]> {
 }
 
 export async function fetchPopular(): Promise<Design[]> {
-  return (await fetchDesigns({ sort: 'popular' }, 0)).items.slice(0, 6)
+  if (!hasSupabase) {
+    const score = (d: Design) => popularityScore({ views: d.views, saves: d.saves })
+    return [...SEED_DESIGNS].sort((a, b) => score(b) - score(a)).slice(0, 6)
+  }
+  // Server-side score over the last 7 days of events (see popular_designs() in functions.sql).
+  const { data, error } = await sb().rpc('popular_designs', { p_limit: 6 })
+  if (error) return (await fetchDesigns({ sort: 'popular' }, 0)).items.slice(0, 6)
+  return (data ?? []) as Design[]
 }
 
 export async function fetchRandomSlug(): Promise<string | null> {
@@ -164,13 +174,20 @@ function demoFind(description: string, demoPro: boolean): FindResponse {
 }
 
 /* ── Newsletter, jobs, submissions ───────────────────────── */
-export async function subscribeNewsletter(email: string) {
+/** Double opt-in: the server stores the address as unconfirmed and emails a confirmation link. */
+export async function subscribeNewsletter(email: string, honeypot = ''): Promise<{ pending: boolean }> {
   if (!hasSupabase) {
     writeLocal('ff_newsletter', [...readLocal<string[]>('ff_newsletter', []), email])
-    return
+    return { pending: false }
   }
-  const { error } = await sb().from('newsletter').insert({ email })
-  if (error && error.code !== '23505') throw new ApiError(400, error.message) // 23505 = already subscribed
+  const res = await fetch('/api/newsletter', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, website: honeypot }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new ApiError(res.status, body.error ?? 'Could not subscribe. Please try again.', body.code)
+  return { pending: Boolean(body.pending) }
 }
 
 export async function fetchJobs(): Promise<Job[]> {
@@ -182,17 +199,52 @@ export async function fetchJobs(): Promise<Job[]> {
 
 export async function createSubmission(
   userId: string,
-  f: { title: string; link: string; notes: string; file: File | null },
+  f: { title: string; link: string; notes: string; file: File | null; ownsRights: boolean },
 ) {
   if (!hasSupabase) throw new ApiError(400, 'Submissions need Supabase to be configured.')
+  if (!f.ownsRights) throw new ApiError(400, 'Please confirm you own this work or have permission to share it.')
   let image_url: string | null = null
   if (f.file) {
-    const ext = (f.file.name.split('.').pop() || 'png').toLowerCase().replace(/[^a-z0-9]/g, '')
-    const path = `${userId}/${uid()}.${ext}`
-    const up = await sb().storage.from('submissions').upload(path, f.file, { contentType: f.file.type })
+    // Resize + convert to WebP in the browser before upload (see src/lib/image.ts).
+    const processed = await processImage(f.file)
+    const path = `${userId}/${uid()}.webp`
+    const up = await sb().storage.from('submissions').upload(path, processed.blob, { contentType: 'image/webp' })
     if (up.error) throw new ApiError(400, up.error.message)
     image_url = sb().storage.from('submissions').getPublicUrl(path).data.publicUrl
   }
-  const { error } = await sb().from('submissions').insert({ user_id: userId, title: f.title, link: f.link, notes: f.notes || null, image_url })
+  const { error } = await sb().from('submissions').insert({ user_id: userId, title: f.title, link: f.link, notes: f.notes || null, image_url, owns_rights: true })
   if (error) throw new ApiError(400, error.message)
+}
+
+/* ── Reports, events, authenticated calls ────────────────── */
+export type ReportReason = 'copyright' | 'inaccurate' | 'offensive' | 'other'
+
+/** "Report / request removal". Goes through the API so it is rate limited and emails the owner. */
+export async function submitReport(r: { designId: string; reason: ReportReason; details: string; email: string; honeypot: string }) {
+  if (!hasSupabase) return // demo mode: nothing to send to
+  const res = await fetch('/api/report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ design_id: r.designId, reason: r.reason, details: r.details, email: r.email, website: r.honeypot }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new ApiError(res.status, body.error ?? 'Could not send the report. Please try again.', body.code)
+}
+
+/** Fire-and-forget popularity signal (copy actions). Feeds "Popular this week". */
+export function logEvent(designId: string, type: 'copy_prompt' | 'copy_code') {
+  if (!hasSupabase) return
+  void sb().rpc('track_event', { p_design: designId, p_type: type })
+}
+
+/** JSON call to a protected API route. */
+export async function authedJson<T>(path: string, token: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  const res = await fetch(path, {
+    method: init?.method ?? 'GET',
+    headers: { Authorization: `Bearer ${token}`, ...(init?.body ? { 'Content-Type': 'application/json' } : {}) },
+    body: init?.body ? JSON.stringify(init.body) : undefined,
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new ApiError(res.status, body.error ?? 'Request failed', body.code)
+  return body as T
 }

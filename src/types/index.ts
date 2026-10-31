@@ -64,6 +64,7 @@ export interface AdminDesign extends ProContent {
   dominant_colors: string[]
   is_pro_content: boolean
   is_featured: boolean
+  rights_status?: RightsStatus
   status: 'draft' | 'published'
   views: number
   saves: number
@@ -100,6 +101,19 @@ export interface Submission {
   notes: string | null
   status: 'pending' | 'approved' | 'rejected'
   created_at: string
+}
+
+export type RightsStatus = 'owner_submitted' | 'permission_granted' | 'original_recreation'
+
+export interface Report {
+  id: string
+  design_id: string
+  reporter_email: string | null
+  reason: 'copyright' | 'inaccurate' | 'offensive' | 'other'
+  details: string
+  status: 'open' | 'resolved' | 'dismissed'
+  created_at: string
+  designs?: { title: string; slug: string } | null
 }
 
 export interface FindResult {

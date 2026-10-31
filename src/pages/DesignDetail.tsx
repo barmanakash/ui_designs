@@ -8,12 +8,13 @@ import { DesignImage } from '@/components/design/DesignImage'
 import { SaveButton } from '@/components/design/SaveButton'
 import { DesignCard } from '@/components/design/DesignCard'
 import { ProLock } from '@/components/paywall/ProLock'
+import { ReportButton } from '@/components/design/ReportButton'
 import { Badge, EmptyState, ErrorState, Skeleton } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/hooks/useAuth'
-import { bumpStat, fetchDesignBySlug, fetchProContent, fetchSimilar } from '@/lib/api'
+import { bumpStat, fetchDesignBySlug, fetchProContent, fetchSimilar, logEvent } from '@/lib/api'
 import { events } from '@/lib/analytics'
 import { label } from '@/lib/constants'
 import { copyText } from '@/lib/utils'
@@ -132,6 +133,7 @@ export default function DesignDetail() {
           <div className="flex gap-2" aria-label="Colors">
             {design.dominant_colors.map((c) => <span key={c} title={c} className="h-6 w-6 rounded-full border border-border" style={{ background: c }} />)}
           </div>
+          <ReportButton designId={design.id} />
         </aside>
       </div>
 
@@ -156,7 +158,7 @@ export default function DesignDetail() {
 
         <TabsContent value="code" className="max-w-3xl">
           {canSee && pro.data ? (
-            <CopyBlock kind="React + Tailwind" text={pro.data.code_snippet} onCopy={() => events.copyCode(design.slug)} />
+            <CopyBlock kind="React + Tailwind" text={pro.data.code_snippet} onCopy={() => { events.copyCode(design.slug); logEvent(design.id, 'copy_code') }} />
           ) : canSee && pro.isLoading ? <Skeleton className="h-64" /> : canSee && pro.isError && !lockedMsg ? (
             <ErrorState message={(pro.error as Error).message} onRetry={() => pro.refetch()} />
           ) : <ProLock what="code" source="detail_code" />}
@@ -164,7 +166,7 @@ export default function DesignDetail() {
 
         <TabsContent value="prompt" className="max-w-3xl">
           {canSee && pro.data ? (
-            <CopyBlock kind="Prompt for Claude, Cursor or v0" text={pro.data.prompt_text} onCopy={() => events.copyPrompt(design.slug)} />
+            <CopyBlock kind="Prompt for Claude, Cursor or v0" text={pro.data.prompt_text} onCopy={() => { events.copyPrompt(design.slug); logEvent(design.id, 'copy_prompt') }} />
           ) : canSee && pro.isLoading ? <Skeleton className="h-64" /> : canSee && pro.isError && !lockedMsg ? (
             <ErrorState message={(pro.error as Error).message} onRetry={() => pro.refetch()} />
           ) : <ProLock what="prompt" source="detail_prompt" />}

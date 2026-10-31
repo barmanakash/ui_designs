@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { Seo } from '@/components/layout/Seo'
 import { Button } from '@/components/ui/button'
 import { Field, Input, Textarea } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/hooks/useAuth'
 import { createSubmission } from '@/lib/api'
+import { validateImageFile } from '@/lib/image'
 
 export default function Submit() {
   const { user, demo } = useAuth()
@@ -14,20 +16,29 @@ export default function Submit() {
   const [link, setLink] = useState('')
   const [notes, setNotes] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const [fileError, setFileError] = useState('')
+  const [ownsRights, setOwnsRights] = useState(false)
   const submission = useMutation({
-    mutationFn: () => createSubmission(user?.id ?? 'demo', { title: title.trim(), link: link.trim(), notes: notes.trim(), file }),
+    mutationFn: () => createSubmission(user?.id ?? 'demo', { title: title.trim(), link: link.trim(), notes: notes.trim(), file, ownsRights }),
     onSuccess: () => {
       setTitle('')
       setLink('')
       setNotes('')
       setFile(null)
+      setOwnsRights(false)
       toast('Thanks! Your design has been submitted for review.')
     },
   })
 
+  const pickFile = (picked: File | null) => {
+    const problem = picked ? validateImageFile(picked) : null
+    setFileError(problem ?? '')
+    setFile(problem ? null : picked)
+  }
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!user) return
+    if (!user || !ownsRights) return
     submission.mutate()
   }
 
@@ -47,10 +58,26 @@ export default function Submit() {
             <Field label="Notes" hint="Add context that will help our reviewers.">
               <Textarea value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={2000} rows={4} />
             </Field>
-            <Field label="Screenshot (optional)" hint="PNG, JPG, or WebP image.">
-              <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+            <Field label="Screenshot (optional)" hint="PNG, JPG or WebP, up to 5 MB. We resize and convert it to WebP.">
+              <Input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => pickFile(event.target.files?.[0] ?? null)} />
             </Field>
-            <Button type="submit" disabled={submission.isPending || demo}>{submission.isPending ? 'Submitting…' : 'Submit for review'}</Button>
+            {fileError && <p role="alert" className="text-sm text-danger">{fileError}</p>}
+
+            <label className="flex items-start gap-3 rounded-xl border border-border p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={ownsRights}
+                onChange={(event) => setOwnsRights(event.target.checked)}
+                required
+                className="mt-0.5 h-4 w-4 shrink-0"
+              />
+              <span>
+                I created this design, or I have permission from its creator to share it. I agree to the{' '}
+                <Link to="/terms" className="text-accent underline">Terms</Link> and understand it will be shown with credit and a link to the source.
+              </span>
+            </label>
+
+            <Button type="submit" disabled={submission.isPending || demo || !ownsRights}>{submission.isPending ? 'Submitting…' : 'Submit for review'}</Button>
             {submission.isError && <p role="alert" className="text-sm text-danger">{(submission.error as Error).message}</p>}
           </form>
         )}
