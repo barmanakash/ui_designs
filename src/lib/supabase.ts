@@ -1,5 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
+import { PRICING } from './constants'
+
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
 
@@ -17,5 +19,6 @@ export function sb(): SupabaseClient {
 }
 
 export const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) || window.location.origin).replace(/\/$/, '')
-export const PRICE_MONTHLY = Number(import.meta.env.VITE_PRICE_MONTHLY || 499)
-export const PRICE_YEARLY = Number(import.meta.env.VITE_PRICE_YEARLY || 4999)
+// Prices live in src/lib/constants.ts (PRICING). Re-exported here so existing imports keep working.
+export const PRICE_MONTHLY = PRICING.monthly.inr
+export const PRICE_YEARLY = PRICING.yearly.inr

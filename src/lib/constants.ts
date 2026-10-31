@@ -4,6 +4,17 @@ export const SITE_NAME = 'Frameflow'
 export const FREE_FIND_PER_DAY = 3
 export const FREE_BOARD_LIMIT = 2
 
+/**
+ * Pricing: the ONE place to edit prices. INR is what Razorpay charges (tax inclusive);
+ * USD is shown for international users. If you change INR amounts, also update the
+ * Razorpay plans (`npm run razorpay:plans`) so the checkout amount matches.
+ */
+export const PRICING = {
+  monthly: { inr: 499, usd: 9 },
+  yearly: { inr: 3999, usd: 79 },
+  refundDays: 7,
+} as const
+
 export const FLOW_TYPES = [
   'onboarding',
   'checkout',

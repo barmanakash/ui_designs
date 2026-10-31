@@ -32,6 +32,8 @@ export default function App() {
           <Route path="find" element={<Find />} />
           <Route path="moodboards" element={<RequireAuth><Moodboards /></RequireAuth>} />
           <Route path="board/:shareSlug" element={<PublicBoard />} />
+          {/* Spec URL for shared boards; /board/:shareSlug is kept so existing links still work. */}
+          <Route path="moodboards/:shareSlug" element={<PublicBoard />} />
           <Route path="pricing" element={<Pricing />} />
           <Route path="submit" element={<RequireAuth><Submit /></RequireAuth>} />
           <Route path="jobs" element={<Jobs />} />
