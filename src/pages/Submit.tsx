@@ -63,6 +63,14 @@ export default function Submit() {
             </Field>
             {fileError && <p role="alert" className="text-sm text-danger">{fileError}</p>}
 
+            {/* Paid placement is a stub for the MVP: shown so the option is visible, but not purchasable yet. */}
+            <label className="flex items-start gap-3 rounded-xl border border-dashed border-border p-3 text-sm text-muted">
+              <input type="checkbox" disabled className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                <span className="font-medium text-fg">Featured placement</span> (coming soon): highlight this design on the home page.
+              </span>
+            </label>
+
             <label className="flex items-start gap-3 rounded-xl border border-border p-3 text-sm">
               <input
                 type="checkbox"

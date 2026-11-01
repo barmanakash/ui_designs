@@ -92,6 +92,7 @@ export default function DesignDetail() {
         title={design.title}
         description={design.description}
         path={`/design/${design.slug}`}
+        image={design.image_url}
         jsonLd={{ '@context': 'https://schema.org', '@type': 'CreativeWork', name: design.title, description: design.description, author: design.author_name ?? undefined, keywords: design.tags.join(', ') }}
       />
       <nav aria-label="Breadcrumb" className="text-sm text-muted">
@@ -122,7 +123,7 @@ export default function DesignDetail() {
             <SaveButton design={design} label className="h-10" />
             {design.source_url && (
               <Button asChild variant="outline">
-                <a href={design.source_url} target="_blank" rel="noopener noreferrer nofollow">View source <ExternalLink size={14} /></a>
+                <a href={design.source_url} target="_blank" rel="noopener noreferrer nofollow">View original <ExternalLink size={14} /></a>
               </Button>
             )}
           </div>

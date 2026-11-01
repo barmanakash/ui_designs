@@ -3,7 +3,7 @@
 import type { BillingPeriod } from '@/types'
 import { ApiError } from './api'
 
-export interface CheckoutUser { email: string; name: string | null }
+export interface CheckoutUser { email: string; name: string | null; /** Optional GSTIN to print on the receipt. */ gstin?: string }
 export type CheckoutOutcome = 'success' | 'dismissed'
 
 export interface PaymentsAdapter {
@@ -32,7 +32,7 @@ const razorpay: PaymentsAdapter = {
     const res = await fetch('/api/create-subscription', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ plan, provider: 'razorpay' }),
+      body: JSON.stringify({ plan, provider: 'razorpay', gstin: user.gstin || undefined }),
     })
     const body = await res.json().catch(() => ({}))
     if (!res.ok) throw new ApiError(res.status, body.error ?? 'Could not start checkout')

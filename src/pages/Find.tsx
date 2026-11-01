@@ -4,10 +4,12 @@ import { useMutation } from '@tanstack/react-query'
 import { Search, Sparkles } from 'lucide-react'
 import { Seo } from '@/components/layout/Seo'
 import { DesignCard } from '@/components/design/DesignCard'
+import { SkeletonGrid } from '@/components/design/DesignGrid'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
 import { findReferences } from '@/lib/api'
+import { FREE_FIND_PER_DAY } from '@/lib/constants'
 
 export default function Find() {
   const [brief, setBrief] = useState('')
@@ -38,7 +40,10 @@ export default function Find() {
             rows={5}
           />
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted">{isPro ? 'Unlimited searches with Pro.' : 'Free searches are limited each day.'}</p>
+            <p className="text-sm text-muted">
+              {isPro ? 'Unlimited searches with Pro.' : `${FREE_FIND_PER_DAY} free searches per day.`}
+              <span className="ml-3 tabular-nums" aria-label={`${brief.length} of 1000 characters used`}>{brief.length}/1000</span>
+            </p>
             <Button type="submit" disabled={!brief.trim() || search.isPending}>
               <Search size={16} /> {search.isPending ? 'Finding references…' : 'Find references'}
             </Button>
@@ -54,7 +59,14 @@ export default function Find() {
           </div>
         )}
 
-        {search.data && (
+        {search.isPending && (
+          <section className="mt-10" aria-live="polite">
+            <p className="mb-4 text-sm text-muted">Finding the best references for your brief…</p>
+            <SkeletonGrid count={4} />
+          </section>
+        )}
+
+        {search.data && !search.isPending && (
           <section className="mt-10" aria-live="polite">
             <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
               <div>

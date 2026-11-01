@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { ConfigError } from './env.js'
+import { captureServerError } from './monitor.js'
 
 /** Throw from anywhere in a route to return a specific status + machine-readable code. */
 export class HttpError extends Error {
@@ -48,6 +49,7 @@ export function route(
         return send(res, 503, { error: 'This feature is not configured yet.', code: 'not_configured' })
       }
       console.error('Unhandled API error:', e)
+      await captureServerError(e, req.url?.split('?')[0])
       return send(res, 500, { error: 'Something went wrong. Please try again.' })
     }
   }

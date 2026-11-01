@@ -12,7 +12,7 @@ export default function PublicBoard() {
 
   return (
     <div className="container-page py-10">
-      <Seo title={board.data?.board.name ?? 'Shared moodboard'} path={`/board/${shareSlug}`} />
+      <Seo title={board.data?.board.name ?? 'Shared moodboard'} path={`/moodboards/${shareSlug}`} />
       {board.isLoading ? <p className="text-muted">Loading moodboard…</p> : board.isError ? (
         <EmptyState title="Could not load this moodboard" body={(board.error as Error).message} />
       ) : !board.data ? (

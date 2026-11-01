@@ -107,6 +107,7 @@ async function activate(event: string, sub: SubEntity, payment?: PaymentEntity) 
           plan: plan ?? 'pro',
           renewsOn: fmtDate(end),
           siteUrl: siteUrl(),
+          gstin: noteOf(sub, 'gstin') ?? null,
         }),
       )
     }

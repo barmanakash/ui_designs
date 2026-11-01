@@ -99,6 +99,8 @@ export interface Submission {
   link: string
   image_url: string | null
   notes: string | null
+  /** Submitter confirmed they own the work or have permission (enforced by RLS). */
+  owns_rights?: boolean
   status: 'pending' | 'approved' | 'rejected'
   created_at: string
 }

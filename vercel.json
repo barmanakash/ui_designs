@@ -1,5 +1,16 @@
 {
   "rewrites": [
+    {
+      "source": "/design/:slug",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|[Tt]witterbot|[Ll]inked[Ii]n[Bb]ot|[Ss]lackbot|WhatsApp|[Tt]elegram[Bb]ot|[Dd]iscordbot|Pinterest).*"
+        }
+      ],
+      "destination": "/api/design-og?slug=:slug"
+    },
     { "source": "/sitemap.xml", "destination": "/api/sitemap" },
     { "source": "/((?!api/|assets/|seed/).*)", "destination": "/index.html" }
   ],

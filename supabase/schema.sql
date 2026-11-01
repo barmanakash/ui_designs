@@ -196,3 +196,11 @@ create table if not exists public.webhook_events (
   event       text not null,
   received_at timestamptz not null default now()
 );
+
+-- ── Additive columns (safe to re-run; added after the first release) ─────────
+-- Set once the welcome email has been sent, so it is never sent twice.
+alter table public.profiles add column if not exists welcomed_at timestamptz;
+-- Optional GSTIN a customer entered at checkout; printed on their receipt email.
+alter table public.subscriptions add column if not exists gstin text;
+-- When a submission was reviewed (set by /api/submission-review).
+alter table public.submissions add column if not exists reviewed_at timestamptz;

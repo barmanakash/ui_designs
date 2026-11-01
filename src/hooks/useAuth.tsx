@@ -25,6 +25,21 @@ const Ctx = createContext<AuthCtx | null>(null)
 const proActive = (p: Profile | null) =>
   !!p && p.plan === 'pro' && (!p.plan_expires_at || new Date(p.plan_expires_at).getTime() > Date.now())
 
+/**
+ * Asks the server to send the welcome email. The server sends it only once per user, so this is
+ * safe to call on every sign-in; the sessionStorage flag just avoids repeat calls in one tab.
+ */
+function sendWelcomeOnce(userId: string, token: string) {
+  const key = `ff_welcome_${userId}`
+  try {
+    if (sessionStorage.getItem(key)) return
+    sessionStorage.setItem(key, '1')
+  } catch {
+    /* storage blocked: the server still guards against duplicates */
+  }
+  void fetch('/api/welcome', { method: 'POST', headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -43,10 +58,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session)
       loadProfile(data.session?.user.id).finally(() => setLoading(false))
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
       // Defer: calling Supabase inside this callback can deadlock.
       setTimeout(() => loadProfile(s?.user.id), 0)
+      if (event === 'SIGNED_IN' && s) sendWelcomeOnce(s.user.id, s.access_token)
     })
     return () => sub.subscription.unsubscribe()
   }, [loadProfile])

@@ -4,8 +4,10 @@ import { Check, Minus, Sparkles } from 'lucide-react'
 import { Seo } from '@/components/layout/Seo'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
+import { Field, Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
 import { FREE_BOARD_LIMIT, FREE_FIND_PER_DAY, PRICING } from '@/lib/constants'
+import { isValidGstin, normalizeGstin } from '@/lib/gstin'
 import { payments } from '@/lib/payments'
 import type { BillingPeriod } from '@/types'
 
@@ -46,16 +48,18 @@ export default function Pricing() {
   const { user, profile, token, isPro, demo, refreshProfile } = useAuth()
   const [period, setPeriod] = useState<BillingPeriod>('monthly')
   const [busy, setBusy] = useState(false)
+  const [gstin, setGstin] = useState('')
+  const gstinInvalid = !isValidGstin(gstin)
   const toast = useToast()
 
   const inr = period === 'monthly' ? PRICING.monthly.inr : PRICING.yearly.inr
   const usd = period === 'monthly' ? PRICING.monthly.usd : PRICING.yearly.usd
 
   const checkout = async () => {
-    if (!user || !token) return
+    if (!user || !token || gstinInvalid) return
     setBusy(true)
     try {
-      const outcome = await payments.checkout(period, token, { email: user.email ?? '', name: profile?.name ?? null })
+      const outcome = await payments.checkout(period, token, { email: user.email ?? '', name: profile?.name ?? null, gstin: normalizeGstin(gstin) })
       if (outcome === 'success') {
         await refreshProfile()
         toast('Payment received. Your Pro plan will activate shortly.')
@@ -95,9 +99,24 @@ export default function Pricing() {
             {['Full design teardowns, code and prompts', 'Unlimited Find References searches', 'Unlimited moodboards'].map((item) => <li key={item} className="flex gap-2"><Check size={16} className="shrink-0 text-accent" aria-hidden="true" />{item}</li>)}
           </ul>
           <div className="mt-6">
+            {user && !isPro && !demo && (
+              <div className="mb-4">
+                <Field label="GSTIN (optional)" hint="Add it if you need it on your receipt. Leave blank otherwise.">
+                  <Input
+                    value={gstin}
+                    onChange={(e) => setGstin(e.target.value)}
+                    maxLength={15}
+                    placeholder="22AAAAA0000A1Z5"
+                    autoComplete="off"
+                    aria-invalid={gstinInvalid}
+                  />
+                </Field>
+                {gstinInvalid && <p role="alert" className="mt-1 text-sm text-danger">That doesn’t look like a valid 15-character GSTIN.</p>}
+              </div>
+            )}
             {isPro ? <p className="rounded-lg bg-accent-soft p-3 text-sm font-medium text-accent">You already have Pro.</p>
               : demo ? <p className="text-sm text-muted">Demo mode is active. <Link to="/account" className="font-medium text-accent underline">Manage demo access</Link>.</p>
-                : user ? <Button className="w-full" onClick={checkout} disabled={busy}>{busy ? 'Opening checkout…' : 'Continue to checkout'}</Button>
+                : user ? <Button className="w-full" onClick={checkout} disabled={busy || gstinInvalid}>{busy ? 'Opening checkout…' : 'Continue to checkout'}</Button>
                   : <Button asChild className="w-full"><Link to="/login">Log in to upgrade</Link></Button>}
           </div>
           <p className="mt-4 text-center text-xs text-muted">

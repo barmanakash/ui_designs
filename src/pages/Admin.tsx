@@ -9,11 +9,18 @@ import { Badge, EmptyState, ErrorState, Skeleton } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { sb } from '@/lib/supabase'
+import { authedJson } from '@/lib/api'
+import { useAuth } from '@/hooks/useAuth'
+import { FLOW_TYPES, INDUSTRIES, slugify } from '@/lib/constants'
+import { uid } from '@/lib/utils'
 import type { Submission } from '@/types'
 
 function SubmissionsPanel() {
   const toast = useToast()
+  const { token } = useAuth()
   const qc = useQueryClient()
+  // Submissions already turned into drafts in this session (prevents accidental duplicates).
+  const [drafted, setDrafted] = useState<Set<string>>(new Set())
   const submissions = useQuery({
     queryKey: ['admin-submissions'],
     queryFn: async () => {
@@ -23,11 +30,38 @@ function SubmissionsPanel() {
     },
   })
   const updateStatus = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: Submission['status'] }) => {
-      const { error } = await sb().from('submissions').update({ status }).eq('id', id)
-      if (error) throw error
+    mutationFn: async ({ id, status }: { id: string; status: 'approved' | 'rejected' }) => {
+      // Goes through the server so the submitter is emailed and the admin role is re-checked there.
+      if (!token) throw new Error('Please log in again.')
+      await authedJson('/api/submission-review', token, { method: 'POST', body: { id, status } })
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-submissions'] }),
+    onError: (error: Error) => toast(error.message, 'error'),
+  })
+
+  /** Approved submission → unpublished draft design the admin finishes in the Designs tab. */
+  const createDraft = useMutation({
+    mutationFn: async (s: Submission) => {
+      const { error } = await sb().from('designs').insert({
+        slug: `${slugify(s.title)}-${uid().slice(0, 4)}`,
+        title: s.title,
+        description: s.notes ?? '',
+        image_url: s.image_url ?? '/seed/placeholder.svg',
+        source_url: s.link,
+        flow_type: FLOW_TYPES[0],
+        industry: INDUSTRIES[0],
+        platform: 'web',
+        rights_status: 'owner_submitted',
+        status: 'draft',
+      })
+      if (error) throw error
+      return s.id
+    },
+    onSuccess: (id) => {
+      setDrafted((prev) => new Set(prev).add(id))
+      void qc.invalidateQueries({ queryKey: ['admin-designs'] })
+      toast('Draft created. Finish it in the Designs tab (flow type, credit, teardown), then publish.')
+    },
     onError: (error: Error) => toast(error.message, 'error'),
   })
 
@@ -43,6 +77,7 @@ function SubmissionsPanel() {
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-lg font-semibold">{submission.title}</h3>
               <Badge>{submission.status}</Badge>
+              {submission.owns_rights && <Badge>rights confirmed</Badge>}
             </div>
             <a className="mt-1 inline-flex items-center gap-1 break-all text-sm text-accent underline" href={submission.link} target="_blank" rel="noopener noreferrer">
               {submission.link}<ExternalLink size={13} />
@@ -50,6 +85,18 @@ function SubmissionsPanel() {
             {submission.notes && <p className="mt-2 text-sm text-muted">{submission.notes}</p>}
             {submission.image_url && <a className="mt-2 block text-sm text-accent underline" href={submission.image_url} target="_blank" rel="noopener noreferrer">View screenshot</a>}
           </div>
+          {submission.status === 'approved' && (
+            <div className="flex shrink-0 gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => createDraft.mutate(submission)}
+                disabled={createDraft.isPending || drafted.has(submission.id)}
+              >
+                {drafted.has(submission.id) ? 'Draft created' : 'Create draft design'}
+              </Button>
+            </div>
+          )}
           {submission.status === 'pending' && (
             <div className="flex shrink-0 gap-2">
               <Button size="sm" onClick={() => updateStatus.mutate({ id: submission.id, status: 'approved' })} disabled={updateStatus.isPending}>Approve</Button>

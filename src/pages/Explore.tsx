@@ -9,13 +9,18 @@ import { Button } from '@/components/ui/button'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useInView } from '@/hooks/useInView'
 import { fetchDesigns, type DesignQuery } from '@/lib/api'
+import { readLocal, writeLocal } from '@/lib/utils'
 
 const KEYS = ['flow', 'industry', 'platform', 'tag', 'color', 'sort'] as const
+const RECENT_KEY = 'ff_recent_searches'
+const MAX_RECENT = 5
 
 export default function Explore() {
   const [params, setParams] = useSearchParams()
   const [text, setText] = useState(params.get('q') ?? '')
   const search = useDebounce(text, 350)
+  // Recent searches live only in this browser (localStorage), never on a server.
+  const [recent, setRecent] = useState<string[]>(() => readLocal<string[]>(RECENT_KEY, []))
 
   // URL is the source of truth for filters, so views are shareable.
   const query = useMemo<DesignQuery>(() => {
@@ -30,6 +35,19 @@ export default function Explore() {
     search ? next.set('q', search) : next.delete('q')
     setParams(next, { replace: true })
   }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Remember a search once the user pauses typing (ignores 1-letter noise).
+  useEffect(() => {
+    const term = search.trim()
+    if (term.length < 2) return
+    setRecent((prev) => {
+      const next = [term, ...prev.filter((r) => r.toLowerCase() !== term.toLowerCase())].slice(0, MAX_RECENT)
+      writeLocal(RECENT_KEY, next)
+      return next
+    })
+  }, [search])
+
+  const clearRecent = () => { setRecent([]); writeLocal(RECENT_KEY, []) }
 
   const patch = (p: Partial<DesignQuery>) => {
     const next = new URLSearchParams(params)
@@ -64,6 +82,16 @@ export default function Explore() {
           className="h-11 w-full rounded-xl border border-border bg-card pl-10 pr-3 text-sm placeholder:text-muted"
         />
       </div>
+
+      {recent.length > 0 && !text && (
+        <div className="mt-3 flex flex-wrap items-center gap-2" role="group" aria-label="Recent searches">
+          <span className="text-sm text-muted">Recent:</span>
+          {recent.map((r) => (
+            <button key={r} type="button" onClick={() => setText(r)} className="rounded-full border border-border px-3 py-1 text-sm hover:bg-accent-soft">{r}</button>
+          ))}
+          <button type="button" onClick={clearRecent} className="text-sm text-muted underline hover:text-fg">Clear</button>
+        </div>
+      )}
 
       <div className="mt-6"><FilterBar value={query} onChange={patch} onClear={clear} /></div>
 

@@ -11,6 +11,8 @@ import { FlowChips } from '@/components/design/FilterBar'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/badge'
 import { fetchDesigns, fetchPopular, fetchRandomSlug } from '@/lib/api'
+import { SITE_NAME } from '@/lib/constants'
+import { SITE_URL } from '@/lib/supabase'
 import { useToast } from '@/components/ui/toast'
 
 export default function Home() {
@@ -30,7 +32,16 @@ export default function Home() {
 
   return (
     <>
-      <Seo path="/" />
+      <Seo
+        path="/"
+        jsonLd={{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: SITE_NAME,
+          url: SITE_URL,
+          potentialAction: { '@type': 'SearchAction', target: `${SITE_URL}/explore?q={search_term_string}`, 'query-input': 'required name=search_term_string' },
+        }}
+      />
       <section className="container-page pb-6 pt-14 text-center sm:pt-20">
         <p className="text-sm font-medium text-accent">AI-agent interfaces · Fintech & UPI flows</p>
         <h1 className="mx-auto mt-3 max-w-3xl text-5xl leading-[1.05] sm:text-7xl">

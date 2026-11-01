@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { newsletterConfirmEmail, sendEmail } from './_lib/email.js'
+import { newsletterConfirmEmail, sendEmail, syncNewsletterAudience } from './_lib/email.js'
 import { env, siteUrl } from './_lib/env.js'
 import { HttpError, queryParam, route, send } from './_lib/http.js'
 import { rateLimit } from './_lib/rateLimit.js'
@@ -34,13 +34,19 @@ export default route(['GET', 'POST'], async (req, res) => {
         .from('newsletter')
         .update({ confirmed: true, confirmed_at: new Date().toISOString() })
         .eq('token', confirm)
-        .select('id')
+        .select('id,email')
       if (error) throw error
-      if (data?.length) outcome = 'confirmed'
+      if (data?.length) {
+        outcome = 'confirmed'
+        await syncNewsletterAudience(data[0].email as string, true)
+      }
     } else if (unsubscribe && TOKEN.test(unsubscribe)) {
-      const { data, error } = await admin().from('newsletter').delete().eq('token', unsubscribe).select('id')
+      const { data, error } = await admin().from('newsletter').delete().eq('token', unsubscribe).select('id,email')
       if (error) throw error
-      if (data?.length) outcome = 'unsubscribed'
+      if (data?.length) {
+        outcome = 'unsubscribed'
+        await syncNewsletterAudience(data[0].email as string, false)
+      }
     }
 
     res.setHeader('Cache-Control', 'no-store')

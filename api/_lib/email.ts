@@ -55,11 +55,12 @@ const p = (s: string) => `<p style="font-size:15px;line-height:1.55;margin:0 0 1
 const button = (href: string, label: string) =>
   `<p style="margin:20px 0 4px"><a href="${escapeHtml(href)}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:500">${escapeHtml(label)}</a></p>`
 
-export function receiptEmail(to: string, o: { amount: number; currency: string; plan: string; renewsOn: string | null; siteUrl: string }): Mail {
+export function receiptEmail(to: string, o: { amount: number; currency: string; plan: string; renewsOn: string | null; siteUrl: string; gstin?: string | null }): Mail {
   const amount = new Intl.NumberFormat('en-IN', { style: 'currency', currency: o.currency }).format(o.amount)
   const lines = [
     p(`Thanks for subscribing to ${BRAND} Pro. We received your payment of <strong>${escapeHtml(amount)}</strong> (${escapeHtml(o.plan)} plan).`),
     o.renewsOn ? p(`Your plan is active until <strong>${escapeHtml(o.renewsOn)}</strong> and renews automatically. Cancel anytime from your account page.`) : '',
+    o.gstin ? p(`GSTIN on this receipt: <strong>${escapeHtml(o.gstin)}</strong>`) : '',
     button(`${o.siteUrl}/account`, 'Manage subscription'),
     p('Prices include GST where applicable. Keep this email as your receipt.'),
   ].join('')
@@ -67,7 +68,7 @@ export function receiptEmail(to: string, o: { amount: number; currency: string; 
     to,
     subject: `Your ${BRAND} Pro receipt`,
     html: layout('Payment received', lines),
-    text: `Thanks for subscribing to ${BRAND} Pro. We received ${amount} (${o.plan} plan).${o.renewsOn ? ` Active until ${o.renewsOn}.` : ''} Manage: ${o.siteUrl}/account`,
+    text: `Thanks for subscribing to ${BRAND} Pro. We received ${amount} (${o.plan} plan).${o.renewsOn ? ` Active until ${o.renewsOn}.` : ''}${o.gstin ? ` GSTIN: ${o.gstin}.` : ''} Manage: ${o.siteUrl}/account`,
   }
 }
 
@@ -115,5 +116,67 @@ export function reportNotificationEmail(to: string, o: { designTitle: string; de
     subject: `[${BRAND}] Report: ${o.designTitle}`,
     html: layout('New content report', body),
     text: `${o.designTitle} was reported (${o.reason}). ${o.details} Reporter: ${o.reporterEmail ?? 'n/a'} ${o.designUrl}`,
+  }
+}
+
+export function welcomeEmail(to: string, name: string | null, siteUrl: string): Mail {
+  // layout() escapes the heading itself, so the name is passed through raw here.
+  const hello = name ? `Welcome, ${name.split(' ')[0]}` : 'Welcome'
+  const body = [
+    p(`Glad you’re here. ${BRAND} is a curated gallery of AI-agent and fintech/UPI interfaces, each with a teardown, React code and a prompt that recreates it.`),
+    p('A good first step: browse the gallery, save a few designs to a moodboard, or describe your product on Find References and let us suggest the best matches.'),
+    button(`${siteUrl}/explore`, 'Start exploring'),
+  ].join('')
+  return {
+    to,
+    subject: `Welcome to ${BRAND}`,
+    html: layout(hello, body),
+    text: `Welcome to ${BRAND}. Start exploring: ${siteUrl}/explore`,
+  }
+}
+
+export function submissionReviewedEmail(
+  to: string,
+  o: { title: string; approved: boolean; siteUrl: string },
+): Mail {
+  const body = o.approved
+    ? [
+        p(`Good news: your submission <strong>${escapeHtml(o.title)}</strong> was approved. We’ll finish the write-up and publish it with full credit and a link back to your original.`),
+        p('Thanks for sharing your work with the community.'),
+        button(`${o.siteUrl}/explore`, 'Browse the gallery'),
+      ]
+    : [
+        p(`Thanks for submitting <strong>${escapeHtml(o.title)}</strong>. We’re not able to feature it right now.`),
+        p('This is usually about fit with our focus (AI-agent and fintech/UPI interfaces) or a rights question. You’re welcome to submit other work anytime.'),
+        button(`${o.siteUrl}/submit`, 'Submit another design'),
+      ]
+  return {
+    to,
+    subject: o.approved ? `Your ${BRAND} submission was approved` : `About your ${BRAND} submission`,
+    html: layout(o.approved ? 'Submission approved' : 'Submission update', body.join('')),
+    text: o.approved
+      ? `Your submission "${o.title}" was approved. We'll publish it with full credit. ${o.siteUrl}/explore`
+      : `Thanks for submitting "${o.title}". We're not able to feature it right now. You can submit other work anytime: ${o.siteUrl}/submit`,
+  }
+}
+
+/**
+ * Optional: mirrors confirmed newsletter subscribers into a Resend Audience so you can send
+ * broadcasts from the Resend dashboard. Active only when RESEND_API_KEY and RESEND_AUDIENCE_ID are
+ * set. Best-effort: a failure here never blocks confirming or unsubscribing.
+ */
+export async function syncNewsletterAudience(email: string, subscribed: boolean): Promise<void> {
+  const key = env('RESEND_API_KEY')
+  const audience = env('RESEND_AUDIENCE_ID')
+  if (!key || !audience) return
+  const base = `https://api.resend.com/audiences/${encodeURIComponent(audience)}/contacts`
+  const headers = { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }
+  try {
+    const res = subscribed
+      ? await fetch(base, { method: 'POST', headers, body: JSON.stringify({ email, unsubscribed: false }) })
+      : await fetch(`${base}/${encodeURIComponent(email)}`, { method: 'DELETE', headers })
+    if (!res.ok) console.error('[email] audience sync rejected:', res.status)
+  } catch (e) {
+    console.error('[email] audience sync failed:', e)
   }
 }
