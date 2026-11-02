@@ -3,6 +3,13 @@
 import type { BillingPeriod } from '@/types'
 import { ApiError } from './api'
 
+/**
+ * Payments are "on" only when a Razorpay public key is configured. Without it (for example, before
+ * the Razorpay account is verified) the Pricing page shows "coming soon" instead of a checkout
+ * button that cannot work. Adding VITE_RAZORPAY_KEY_ID later switches checkout on automatically.
+ */
+export const PAYMENTS_ENABLED = Boolean(import.meta.env.VITE_RAZORPAY_KEY_ID)
+
 export interface CheckoutUser { email: string; name: string | null; /** Optional GSTIN to print on the receipt. */ gstin?: string }
 export type CheckoutOutcome = 'success' | 'dismissed'
 

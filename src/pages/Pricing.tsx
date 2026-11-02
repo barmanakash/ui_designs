@@ -8,7 +8,7 @@ import { Field, Input } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
 import { FREE_BOARD_LIMIT, FREE_FIND_PER_DAY, PRICING } from '@/lib/constants'
 import { isValidGstin, normalizeGstin } from '@/lib/gstin'
-import { payments } from '@/lib/payments'
+import { payments, PAYMENTS_ENABLED } from '@/lib/payments'
 import type { BillingPeriod } from '@/types'
 
 const money = (amount: number) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount)
@@ -99,7 +99,7 @@ export default function Pricing() {
             {['Full design teardowns, code and prompts', 'Unlimited Find References searches', 'Unlimited moodboards'].map((item) => <li key={item} className="flex gap-2"><Check size={16} className="shrink-0 text-accent" aria-hidden="true" />{item}</li>)}
           </ul>
           <div className="mt-6">
-            {user && !isPro && !demo && (
+            {user && !isPro && !demo && PAYMENTS_ENABLED && (
               <div className="mb-4">
                 <Field label="GSTIN (optional)" hint="Add it if you need it on your receipt. Leave blank otherwise.">
                   <Input
@@ -115,6 +115,12 @@ export default function Pricing() {
               </div>
             )}
             {isPro ? <p className="rounded-lg bg-accent-soft p-3 text-sm font-medium text-accent">You already have Pro.</p>
+              : !PAYMENTS_ENABLED && !demo ? (
+                <div className="rounded-lg bg-accent-soft p-4 text-sm">
+                  <p className="font-medium text-accent">Pro isn’t open for purchase yet.</p>
+                  <p className="mt-1 text-muted">Everything on the free plan works today. Join the newsletter on the <Link to="/" className="font-medium text-accent underline">home page</Link> to hear when Pro launches.</p>
+                </div>
+              )
               : demo ? <p className="text-sm text-muted">Demo mode is active. <Link to="/account" className="font-medium text-accent underline">Manage demo access</Link>.</p>
                 : user ? <Button className="w-full" onClick={checkout} disabled={busy || gstinInvalid}>{busy ? 'Opening checkout…' : 'Continue to checkout'}</Button>
                   : <Button asChild className="w-full"><Link to="/login">Log in to upgrade</Link></Button>}
