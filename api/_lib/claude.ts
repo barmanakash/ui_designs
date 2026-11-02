@@ -107,3 +107,36 @@ export async function askClaude(system: string, user: string): Promise<string> {
     clearTimeout(timer)
   }
 }
+
+/**
+ * Calls Google's Gemini API (has a free tier via Google AI Studio). Server-side only.
+ * The key goes in a header, not the URL, so it can never leak into logs. The default model can be
+ * changed with GEMINI_MODEL if Google retires it.
+ */
+export async function askGemini(system: string, user: string): Promise<string> {
+  const { GEMINI_API_KEY } = requireEnv('GEMINI_API_KEY')
+  const model = env('GEMINI_MODEL') ?? 'gemini-2.5-flash'
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 25_000)
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'x-goog-api-key': GEMINI_API_KEY, 'content-type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+        // Generous output cap: some Gemini models spend part of it on internal reasoning.
+        generationConfig: { temperature: 0.2, maxOutputTokens: 4000, responseMimeType: 'application/json' },
+      }),
+    })
+    if (!res.ok) {
+      console.error('[gemini]', res.status, (await res.text().catch(() => '')).slice(0, 300))
+      throw new HttpError(502, 'The AI service is unavailable right now.', 'ai_unavailable')
+    }
+    const body = (await res.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] }
+    return (body.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? '').join('')
+  } finally {
+    clearTimeout(timer)
+  }
+}

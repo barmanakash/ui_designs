@@ -2,9 +2,10 @@ import { z } from 'zod'
 import { FREE_FIND_PER_DAY } from '../src/lib/constants.js'
 import { isProActive } from './_lib/access.js'
 import { getProfile, getUser } from './_lib/auth.js'
-import { askClaude, buildPrompt, DescriptionSchema, parseRanking, type DesignMeta } from './_lib/claude.js'
+import { DescriptionSchema, type DesignMeta } from './_lib/claude.js'
 import { HttpError, route, send } from './_lib/http.js'
 import { clientIp, hashActor, rateLimit } from './_lib/rateLimit.js'
+import { rankDesigns } from './_lib/ranker.js'
 import { admin } from './_lib/supabase.js'
 
 // Same columns the frontend reads from `designs_public` (never the gated fields).
@@ -53,9 +54,8 @@ export default route(['POST'], async (req, res) => {
     const designs = (catalog ?? []) as DesignMeta[]
     if (!designs.length) throw new HttpError(404, 'There are no designs to search yet.', 'empty_catalog')
 
-    const { system, user: prompt } = buildPrompt(parsed.data.description, designs)
-    const raw = await askClaude(system, prompt)
-    const ranked = parseRanking(raw, new Set(designs.map((d) => d.id)))
+    // Free local matcher by default; Gemini or Claude if a key is configured (see _lib/ranker.ts).
+    const { ranked } = await rankDesigns(parsed.data.description, designs)
 
     const { data: rows, error: fetchError } = await admin()
       .from('designs_public')

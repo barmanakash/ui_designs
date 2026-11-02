@@ -50,7 +50,8 @@ export default route(['GET', 'POST'], async (req, res) => {
     }
 
     res.setHeader('Cache-Control', 'no-store')
-    return res.redirect(302, `${site}/?newsletter=${outcome}`)
+    res.redirect(302, `${site}/?newsletter=${outcome}`)
+    return
   }
 
   await rateLimit(req, 'newsletter', 5, 3600)
